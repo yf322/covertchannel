@@ -1,46 +1,59 @@
-'''
-COMP 8505 - Assignment 1
-Covert Channel - Client by Jeffrey Sasaki
-
-Packets are crafted and, data is stored as a decimal value
-in the source port field of the TCP Header
-
-The packet also sets the Echo flag bit for the server to know that
-the packet is part of the covert channel
-'''
-
-import sys
+import thread
+import threading
+import socket
+import time
 from scapy.all import *
+import sys
 
+dst = sys.argv[1]
+port = int(sys.argv[2])
 pkt = None
+lock = threading.Lock()
 
-# Prase command line argument
-def usage():
-	if len(sys.argv) != 2:
-		print "Usage:", sys.argv[0], "<host_ip>"
-		sys.exit()
-
-# Craft the packet to send
-def craft(character):
+def craft(message):
 	global pkt
-	global dest
-	dest = str(sys.argv[1])
-	char = ord(character) # covert character to decimal value
-	pkt=IP(dst=dest)/TCP(sport=char, dport=RandNum(0, 65535), flags="E")
+	lock.acquire()
+	pkt[TCP].seq += 1
+	pkt[TCP].load = message
+	pkt[TCP].ack = 0
+	del pkt[IP].chksum
+	del pkt[IP].len
+	del pkt[TCP].chksum
+	pkt[TCP].chksum = 72*256 + 105#hex= 0x4869, or “Hi”
+	pkt[TCP].flags = "C" #this is how we identify our packet
+	pkt.show2()
+	lock.release()
 	return pkt
 
-# Send the message based on the user input
-def client():
-	while True:
-		message = raw_input('Enter your message: ')
-		message += "\n"
-		print "Sending data: " + message
-		for char in message:
-			new_pkt = craft(char)
-			send(new_pkt)
+def sniffer():
+	global pkt
+	while True:#change src address if not testing locally
+		p = sniff(filter="tcp and type=0x800 and src=127.0.0.1 and dst=" + dst, count=1, store=1)
+		try:
+			p[0][TCP].seq
+		except:
+			continue
+		lock.acquire()
+		pkt = p[0]
+		lock.release()
 
-# Main
+def client():
+	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	print 'Socket created'
+
+	s.connect((dst, port))
+	
+	#send 5 packets. Fifth packet is crafted packet
+
+	for i in range(5):
+		s.send(str(i))
+		time.sleep(.1)
+	send(craft('5'))#our crafted packet
+	time.sleep(.1)
+	for i in range(5, 10):#send 5 more packets
+		s.send(str(i))
+		time.sleep(.1)
 if __name__ == "__main__":
-    usage()
-    client()
+	thread.start_new_thread(sniffer, ())
+	client()
 
