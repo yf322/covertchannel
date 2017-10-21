@@ -3,7 +3,7 @@ import threading
 import socket
 import time
 import sys
-import psutil
+#import psutil
 
 
 def messWithCpu():
