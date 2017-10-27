@@ -2,8 +2,6 @@ from timeout import timeout
 import time
 import sys
 import urllib2
-import timeit
-import pyspeedtest
 
 
 class Detecter:
@@ -25,27 +23,25 @@ class Detecter:
         except:
             end = start + 8
         t = float(end - start)
-        return 1024/t, t
+        return t
 
     def calibrate(self):
         print("Testing the network speed for calibrate")
         result = 0
         for i in range(0, self.calibrate_n):
-            start = time.time()
-            _, runtime = self.downloadSpeed()
+            runtime = self.downloadSpeed()
             result += runtime
-            end = time.time()
-            print "Calibrating #", i, "runtime", end - start
+            print "Calibrating #", i, "runtime", runtime
         return result/float(self.calibrate_n)
 
     def client(self):
         print "Read the network status"
         avg = self.calibrate()
-        print "The average download speed is:", avg, "kb/s"
+        print "The average runtime is:", avg, "kb/s"
         while True:
-            _, runtime = self.downloadSpeed()
+            runtime = self.downloadSpeed()
             start = time.time()
-            if (runtime - avg)/avg > 0.15:
+            if (runtime - avg)/avg > 0.3:
                 self.read += '1'
             else:
                 self.read += '0'
